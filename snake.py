@@ -233,5 +233,3 @@ class Snake:
     def get_score(self):
         return self.score
 
-
-Snake(True).play()
