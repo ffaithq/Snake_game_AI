@@ -5,11 +5,14 @@ import torch.nn as nn
 
 class Agent:
     def __init__(self,arch,n_state,n_action,optimizer,lr):
-        self.target_net = arch(n_state,n_action)
-        self.policy_net = arch(n_state,n_action)
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.target_net = arch(n_state,n_action).to(self.device)
+        self.policy_net = arch(n_state,n_action).to(self.device)
 
         self.init_model()
         self.optimizer = self.get_optimizer(optimizer,lr) 
+
     
     def get_optimizer(self,optimizer,lr):
 
@@ -32,7 +35,7 @@ class Agent:
     def optimize_model(self,batch,gamma,criterion):
         batch_size = len(batch.state)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                                            batch.next_state)), dtype=torch.bool)
+                                            batch.next_state)), dtype=torch.bool,device=self.device)
         
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
         state_batch = torch.cat(batch.state)
@@ -46,7 +49,7 @@ class Agent:
         # on the "older" target_net; selecting their best reward with max(1).values
         # This is merged based on the mask, such that we'll have either the expected
         # state value or 0 in case the state was final.
-        next_state_values = torch.zeros(batch_size)
+        next_state_values = torch.zeros(batch_size,device=self.device)
         with torch.no_grad():
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1).values
 
@@ -73,7 +76,7 @@ class Agent:
     def action(self,epsilon,state,train=True):
         if train:
             if random.uniform(0,1) < epsilon:
-                return torch.tensor([[random.randint(0,3)]])
+                return torch.tensor([[random.randint(0,3)]],device=self.device)
             else:
                 return self.policy_net(state).argmax(1).view(1, 1)
         return self.target_net(state).argmax(1).view(1, 1)

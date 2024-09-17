@@ -4,29 +4,18 @@ import torch
 from agent import Agent
 from snake import Snake
 import matplotlib.pyplot as plt
+from history import Tracker
 
 class DQLearning:
-    def __init__(self,env,agent,memory,hyperparametrs):
+    def __init__(self,env,agent,memory,hyperparametrs,tracker):
         self.env = env
         self.agent = agent
         self.memory = memory
         self.hyperparametrs = hyperparametrs
-        self.history = self.init_history()
+        self.history = tracker
+        #self.wandb = wandb.init()
     
 
-    def init_history(self):
-        return {
-            'score':[],
-            'time_step':[],
-            'average_reward': [],
-            'cumulative_reward': [],
-            'average_loss': [],
-            'score_eval':[],
-            'time_step_eval':[],
-            'average_reward_eval': [],
-            'cumulative_reward_eval': [],
-            'reason':[]
-        }
     def get_samples(self):
         if len(self.memory) < self.hyperparametrs['batch_size']:
             return None
@@ -47,19 +36,19 @@ class DQLearning:
             while not done:
 
                 state = self.env.get_state()
-                state = torch.tensor(state,dtype=torch.float).unsqueeze(0)
+                state = torch.tensor(state,dtype=torch.float,device=self.agent.device).unsqueeze(0)
                 action = self.agent.action(self.hyperparametrs['epsilon'],state)
 
 
                 done,reward,info = self.env.step(action=action.item())
                 cumulative_reward += reward
 
-                reward = torch.tensor([reward],dtype=torch.float)
+                reward = torch.tensor([reward],dtype=torch.float,device=self.agent.device)
                 
                 if done:
                     new_state = None
                 else:
-                    new_state = torch.tensor(self.env.get_state(),dtype=torch.float).unsqueeze(0)
+                    new_state = torch.tensor(self.env.get_state(),dtype=torch.float,device=self.agent.device).unsqueeze(0)
 
                 self.memory.push(state,action,new_state,reward)
 
@@ -71,16 +60,18 @@ class DQLearning:
 
                 time_step += 1
 
-            self.history['score'].append(self.env.get_score())
-            self.history['average_reward'].append(cumulative_reward/time_step)
-            self.history['cumulative_reward'].append(cumulative_reward)
-            self.history['time_step'].append(time_step)
-            self.history['average_loss'].append(loss/time_step)
+ 
+            self.history.push(self.env.get_score(),'Train score')
+            self.history.push(time_step,'Train time step')
+            self.history.push(cumulative_reward/time_step,'Train average reward')
+            self.history.push(cumulative_reward,'Train cumulative reward')
+            
 
             self.agent.save_model(path_target,path_policy)
 
-            if i % 100 == 0:
-                self.save_plot()
+            if i & 50 == 0:
+                self.history.plot('Train score','Train time step','Train average reward','Train cumulative reward')
+                self.history.save()
 
     def eval(self,num_episod,path):
         self.agent.eval(path)
@@ -93,7 +84,7 @@ class DQLearning:
             while not done:
 
                 state = self.env.get_state()
-                state = torch.tensor(state,dtype=torch.float).unsqueeze(0)
+                state = torch.tensor(state,dtype=torch.float,device=self.agent.device).unsqueeze(0)
                 action = self.agent.action(self.hyperparametrs['epsilon'],state,False)
                 done,reward,reason = self.env.step(action=action.item())
                 
@@ -106,51 +97,14 @@ class DQLearning:
 
                 cumulative_reward += reward
                 time_step += 1
+
                 
-            self.history['score_eval'].append(self.env.get_score())
-            self.history['average_reward_eval'].append(cumulative_reward/time_step)
-            self.history['cumulative_reward_eval'].append(cumulative_reward)
-            self.history['time_step_eval'].append(time_step)
-
-            self.history['reason'].append(reason)
-        self.save_plot(mode='_eval')
-
-    def save_plot(self,mode = ''):       
-        plt.figure()
-        plt.plot(self.history['score' + mode])
-        plt.title(f"Score{mode}")
-        plt.savefig(f'plots/Score{mode}.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(self.history['average_reward' + mode])
-        plt.title(f"Average reward{mode}")
-        plt.savefig(f'plots/average_reward{mode}.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(self.history['cumulative_reward' + mode])
-        plt.title(f"Cumulative reward{mode}")
-        plt.savefig(f'plots/cumulative_reward{mode}.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(self.history['time_step' + mode])
-        plt.title(f"Time step{mode}")
-        plt.savefig(f'plots/time_step{mode}.png')
-        plt.close()
-
-        if mode == '':
-                
-            plt.figure()
-            plt.plot(self.history['average_loss'])
-            plt.title(f"Average loss")
-            plt.savefig(f'plots/average_loss.png')
-            plt.close()
-
-        else:
-            plt.figure()
-            plt.plot(self.history['reason'])
-            plt.title(f"Reason")
-            plt.savefig(f'plots/reason.png')
-            plt.close()
+            self.history.push(self.env.get_score(),'Eval score')
+            self.history.push(time_step,'Eval time step')
+            self.history.push(cumulative_reward/time_step,'Eval average reward')
+            self.history.push(cumulative_reward,'Eval cumulative reward')
+            self.history.push(reason,'Eval fail by')
+            
+            if i & 10 == 0:
+                self.history.plot('Eval score','Eval time step','Eval average reward','Eval cumulative reward','Eval fail by')
+                self.history.save()

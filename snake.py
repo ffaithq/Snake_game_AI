@@ -5,6 +5,8 @@ import sys
 from math import floor
 from utils.iou import IoU,box_iou
 from collections import namedtuple
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 PT = namedtuple('Point','x,y')
@@ -12,8 +14,8 @@ PT = namedtuple('Point','x,y')
 
 WIDTH = 500
 HEIGHT = 600
-VELOCITY = 800
-FPS = 16
+VELOCITY = 400
+FPS = 60
 EPSILON = 0.00
 
 SIZE = 20
@@ -47,7 +49,7 @@ class Snake:
             pygame.init()
             self.font = pygame.font.Font('utils/Tahoma.ttf', 25)
             self.click = pygame.time.Clock()
-            self.SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
+            self.SCREEN = pygame.display.set_mode((WIDTH, HEIGHT),pygame.HWSURFACE | pygame.DOUBLEBUF)
 
     def reset(self):
         self.head = PT(random.randint(200,300),random.randint(200,300))
@@ -79,8 +81,8 @@ class Snake:
 
 
     def move(self,current,dt):
-        '''
-                if self.direction == 0:
+
+        if self.direction == 0:
             return current.x - self.velocity*dt, current.y
 
         if self.direction == 1:
@@ -91,12 +93,11 @@ class Snake:
             
         if self.direction == 3:
             return current.x, current.y + self.velocity*dt
-        '''
 
         
 
-
-        if self.direction == 0:
+        '''
+                if self.direction == 0:
             return current.x - 20, current.y
 
         if self.direction == 1:
@@ -107,6 +108,8 @@ class Snake:
             
         if self.direction == 3:
             return current.x, current.y + 20
+        '''
+
 
     def act(self):
         for event in pygame.event.get():
@@ -147,17 +150,17 @@ class Snake:
         R = 0
         if self.fruit is None:
             self.place_fruit()
-            self.add_target()
+            #self.add_target()
 
         if action is None:
             self.direction = self.act()
         else:
             self.direction = action
-        self.add_snake()
+        #self.add_snake()
         new_x,new_y = self.move(self.snake[0],dt)
         self.snake.insert(0,PT(int(new_x),int(new_y)))
-        colision_matrix = box_iou(self.objects,self.objects)
-        if colision_matrix[1,0]:
+        colision_matrix = IoU(self.fruit,self.snake[0],(SIZE,SIZE))
+        if colision_matrix:
             self.fruit = None
             self.score += 1
             R = 10
@@ -186,8 +189,6 @@ class Snake:
                 PREV_TIME = NOW
 
             Done,R,info = self.step(0.01)
-            print(self.snake)
-
     def get_state(self):
         error = 20
         state = []
@@ -232,3 +233,5 @@ class Snake:
     def get_score(self):
         return self.score
 
+
+Snake(True).play()
